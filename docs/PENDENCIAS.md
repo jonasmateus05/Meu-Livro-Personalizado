@@ -16,8 +16,8 @@ Nada abaixo foi simulado como “pronto”. Enquanto os itens 🔴 não forem co
 
 | # | Item | Variáveis | Validação sugerida |
 |---|---|---|---|
-| 6 | Supabase Postgres | `DATABASE_URL` (+ `DATABASE_CA_CERT`) | `npm run db:migrate` e um checkout pelo site |
-| 7 | Supabase Storage (bucket privado, upload, URL assinada) | `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Liberar o pedido de teste e baixar o PDF pelo e-mail |
+| 6 | Banco Neon (PostgreSQL) | `DATABASE_URL` | `npm run db:migrate` e um checkout pelo site |
+| 7 | Cloudflare R2 (bucket privado, upload, URL assinada) | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` | Liberar o pedido de teste e baixar o PDF pelo e-mail |
 | 8 | Resend (domínio verificado, envio, idempotência) | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | Ver o e-mail no painel do Resend e na caixa de entrada (incluindo spam) |
 | 9 | Hospedagem do worker com Chromium | `Dockerfile.worker` | Build e execução no provedor escolhido (não testado aqui — sem Docker) |
 | 10 | Domínio HTTPS e `NEXT_PUBLIC_SITE_URL` | — | Links do e-mail apontando para o domínio final |

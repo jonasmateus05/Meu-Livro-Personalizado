@@ -1,6 +1,6 @@
 # A Bíblia Infantil Personalizada
 
-Aplicação comercial para vender um **livro bíblico infantil personalizado em PDF**: os pais escolhem o nome da criança, a faixa etária (2–4, 5–7 ou 8–10 anos) e o estilo das ilustrações; pagam na **Cakto**; o sistema gera o PDF, guarda no **Supabase Storage privado** e envia o link seguro por e-mail via **Resend**.
+Aplicação comercial para vender um **livro bíblico infantil personalizado em PDF**: os pais escolhem o nome da criança, a faixa etária (2–4, 5–7 ou 8–10 anos) e o estilo das ilustrações; pagam na **Cakto**; o sistema gera o PDF, guarda num **bucket privado do Cloudflare R2** e envia o link seguro por e-mail via **Resend**.
 
 > **Estado atual:** o código, o banco, o livro e os testes automatizados estão prontos e passando. **Ainda não está validado com pagamentos reais**: falta configurar as credenciais e fazer a compra de teste na Cakto descrita em [`docs/CAKTO.md`](docs/CAKTO.md). Até lá, o sistema funciona em **modo seguro** (`FULFILLMENT_AUTO_RELEASE=false`): nenhum livro é gerado sem liberação manual. Veja [`docs/PENDENCIAS.md`](docs/PENDENCIAS.md).
 
@@ -16,7 +16,7 @@ Cakto ──POST /api/webhooks/cakto──► valida segredo ─► registra eve
                                                          ├► sem referência / ambíguo → unmatched / needs_review (nada é gerado)
                                                          └► associado → awaiting_release (modo seguro) ou fila
 Worker (npm run worker) ◄── fila no Postgres (FOR UPDATE SKIP LOCKED, backoff, idempotência)
-   generate_book: HTML → Chromium → verificação de layout → PDF → validação (pdf.js) → bucket privado
+   generate_book: HTML → Chromium → verificação de layout → PDF → validação (pdf.js) → bucket privado R2
    send_book_email: token de download (hash no banco) → Resend com Idempotency-Key
 Comprador ──/download/[token]──► página segura ──POST──► URL assinada de curta duração
 Reembolso/chargeback ──► revoga links e cancela tarefas pendentes
@@ -43,10 +43,9 @@ lib/
   orders.ts                regras de pagamento, associação e revogação
   download.ts, storage.ts, email.ts, tokens.ts, names.ts, validation.ts, config.ts, server.ts
 scripts/                   worker, migração, amostra de PDF, inspeção de payload da Cakto
-supabase/schema.sql        esquema (tabelas, restrições, índices, RLS)
-supabase/storage.sql       bucket privado `books`
+db/schema.sql              esquema PostgreSQL (tabelas, restrições, índices, RLS)
 tests/                     Vitest + PGlite (Postgres real em memória) + Chromium real
-docs/                      instalação, deploy, Supabase/Resend, Cakto, testes, pendências
+docs/                      instalação, deploy, Neon/R2/Resend, Cakto, testes, pendências
 ```
 
 ## Instalação local (resumo)
@@ -55,8 +54,8 @@ Requisitos: Node.js 20.11+ e Chromium (o Playwright instala: `npx playwright ins
 
 ```bash
 npm install
-cp .env.example .env.local        # preencha (veja docs/SUPABASE_RESEND.md e docs/CAKTO.md)
-npm run db:migrate                # aplica supabase/schema.sql e storage.sql no DATABASE_URL
+cp .env.example .env.local        # preencha (veja docs/BANCO_ARMAZENAMENTO_EMAIL.md e docs/CAKTO.md)
+npm run db:migrate                # aplica db/schema.sql no DATABASE_URL
 npm run dev                       # http://localhost:3000
 npm run worker                    # em outro terminal: processa a fila
 ```
@@ -73,7 +72,7 @@ Verificações:
 npm run lint && npm run typecheck && npm test && npm run build
 ```
 
-Detalhes: [`docs/INSTALACAO.md`](docs/INSTALACAO.md) · Deploy: [`docs/DEPLOY.md`](docs/DEPLOY.md) · Supabase e Resend: [`docs/SUPABASE_RESEND.md`](docs/SUPABASE_RESEND.md) · Cakto: [`docs/CAKTO.md`](docs/CAKTO.md) · Testes: [`docs/RELATORIO_TESTES.md`](docs/RELATORIO_TESTES.md) · Pendências: [`docs/PENDENCIAS.md`](docs/PENDENCIAS.md) · Operação/admin: [`docs/OPERACAO.md`](docs/OPERACAO.md)
+Detalhes: [`docs/INSTALACAO.md`](docs/INSTALACAO.md) · Deploy: [`docs/DEPLOY.md`](docs/DEPLOY.md) · Neon, R2 e Resend: [`docs/BANCO_ARMAZENAMENTO_EMAIL.md`](docs/BANCO_ARMAZENAMENTO_EMAIL.md) · Cakto: [`docs/CAKTO.md`](docs/CAKTO.md) · Testes: [`docs/RELATORIO_TESTES.md`](docs/RELATORIO_TESTES.md) · Pendências: [`docs/PENDENCIAS.md`](docs/PENDENCIAS.md) · Operação/admin: [`docs/OPERACAO.md`](docs/OPERACAO.md)
 
 ## Decisões importantes
 

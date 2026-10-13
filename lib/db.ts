@@ -2,8 +2,8 @@ import type { Pool, PoolClient } from "pg";
 
 /**
  * Interface mínima de acesso ao PostgreSQL.
- * Produção: `pg` conectado ao Supabase (DATABASE_URL).
- * Testes: PGlite (PostgreSQL real em WebAssembly) com o mesmo schema.sql.
+ * Produção: `pg` conectado a qualquer PostgreSQL (ex.: Neon) via DATABASE_URL.
+ * Testes: PGlite (PostgreSQL real em WebAssembly) com o mesmo db/schema.sql.
  */
 export interface Sql {
   query<T = Record<string, unknown>>(text: string, params?: unknown[]): Promise<T[]>;
@@ -57,14 +57,10 @@ export async function createPgSql(
       connectionString: databaseUrl,
       max: options.max ?? 3,
       idleTimeoutMillis: 10_000,
-      // Supabase exige TLS. Com DATABASE_CA_CERT (certificado do painel Supabase)
-      // o certificado do servidor é verificado; sem ele, a conexão continua
-      // criptografada, mas sem verificação da cadeia.
-      ssl: isLocal
-        ? undefined
-        : options.caCert
-          ? { ca: options.caCert, rejectUnauthorized: true }
-          : { rejectUnauthorized: false },
+      // TLS obrigatório fora de localhost, com verificação do certificado
+      // (Neon usa certificado público). DATABASE_CA_CERT permite informar uma
+      // CA própria, se o provedor exigir.
+      ssl: isLocal ? undefined : options.caCert ? { ca: options.caCert, rejectUnauthorized: true } : { rejectUnauthorized: true },
     });
   }
   return new PgSql(poolSingleton);

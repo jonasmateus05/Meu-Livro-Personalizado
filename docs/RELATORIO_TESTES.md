@@ -8,15 +8,15 @@ Data da execução: 13/10/2026 · Ambiente: Linux, Node.js 22.22.0, Chromium 141
 |---|---|---|
 | Lint | `npm run lint` | ✅ sem erros nem avisos |
 | Tipos | `npm run typecheck` | ✅ sem erros |
-| Testes automatizados | `npm test` | ✅ **77 de 77 passaram** (6 arquivos, ~35 s) |
+| Testes automatizados | `npm test` | ✅ **80 de 80 passaram** (7 arquivos, ~38 s) |
 | Build de produção | `npm run build` | ✅ compilado (17 rotas) |
 | Fluxo HTTP real | servidor `next start` + PostgreSQL (PGlite via protocolo de rede) | ✅ ver seção “Teste manual ponta a ponta” |
 | Verificação visual | capturas da página (390 px e 1280 px) e de PDFs | ✅ sem rolagem horizontal; layout conferido |
 
 ### Como os testes rodam
-- **Banco:** cada teste cria um PostgreSQL real em memória (PGlite) e aplica o mesmo `supabase/schema.sql` usado em produção — restrições, índices únicos, RLS e transações são exercitados de verdade.
+- **Banco:** cada teste cria um PostgreSQL real em memória (PGlite) e aplica o mesmo `db/schema.sql` usado em produção — restrições, índices únicos, RLS e transações são exercitados de verdade.
 - **PDF:** gerado de verdade com Chromium e lido de volta com pdf.js (sem mocks).
-- **Dublês (fakes):** apenas Supabase Storage (memória), Resend (registra mensagens e simula falhas) e falhas forçadas do renderizador.
+- **Dublês (fakes):** apenas o armazenamento de arquivos (memória; a geração de URL assinada do R2 é testada à parte, sem rede), Resend (registra mensagens e simula falhas) e falhas forçadas do renderizador.
 - **Payloads da Cakto:** simulados no formato do exemplo público. **Não substituem** o teste com payload real (ver PENDENCIAS.md).
 
 ## Cobertura dos cenários obrigatórios
@@ -32,36 +32,36 @@ Data da execução: 13/10/2026 · Ambiente: Linux, Node.js 22.22.0, Chromium 141
 | Webhook duplicado | `webhook` “webhook duplicado: processa uma vez só”, “duplicados concorrentes…”* |
 | Falha na geração do PDF | `jobs` “falha na geração… tenta de novo e conclui”, “falha persistente… pode ser reprocessado”; `book` “renderizador recusa layout que transborda”, “validatePdf recusa…” |
 | Falha no envio de e-mail | `jobs` “falha no envio de e-mail… MESMA chave… MESMO link”, “não envia e-mail duplicado” |
-| Acesso ao PDF de outro pedido | `download` “cada token só abre o PDF do próprio pedido”, “tokens adulterados… não dão acesso”, “só o hash do token” |
+| Acesso ao PDF de outro pedido | `storage` “caminho do arquivo deriva só do id do pedido”, “gera URL assinada curta…”; `download` “cada token só abre o PDF do próprio pedido”, “tokens adulterados… não dão acesso”, “só o hash do token” |
 | Associação incorreta pagamento ↔ personalização | `webhook` “sem referência… nunca associa por e-mail”, “referência desconhecida”, “duas referências”, “mesma personalização paga por dois pedidos”, “restrição única”, “reconciliação manual…”; `book` “validatePdf recusa PDF de outro nome” |
 
 \* PGlite usa uma única conexão; os envios concorrentes são serializados. A proteção contra corrida real (várias conexões) vem das restrições únicas e do `SELECT … FOR UPDATE`, que não foram estressados com conexões paralelas num PostgreSQL de servidor.
 
 ## Lista completa (saída do Vitest, ordem de conclusão)
 
-- ✅ tests/webhook.test.ts > autenticidade > recusa segredo errado ou ausente (401) e não grava nada
 - ✅ tests/jobs.test.ts > fila > enfileiramento idempotente e claim exclusivo
-- ✅ tests/webhook.test.ts > autenticidade > responde 503 se o segredo não estiver configurado no servidor
+- ✅ tests/webhook.test.ts > autenticidade > recusa segredo errado ou ausente (401) e não grava nada
 - ✅ tests/jobs.test.ts > fila > backoff exponencial limitado
+- ✅ tests/webhook.test.ts > autenticidade > responde 503 se o segredo não estiver configurado no servidor
 - ✅ tests/download.test.ts > acesso seguro ao PDF > cada token só abre o PDF do próprio pedido (sem acesso ao PDF de outro pedido)
 - ✅ tests/webhook.test.ts > autenticidade > recusa JSON inválido e payload sem pedido
-- ✅ tests/jobs.test.ts > processamento assíncrono completo > pagamento aprovado -> PDF validado no storage privado -> e-mail com link seguro
 - ✅ tests/webhook.test.ts > autenticidade > ignora produto diferente do configurado
+- ✅ tests/jobs.test.ts > processamento assíncrono completo > pagamento aprovado -> PDF validado no storage privado -> e-mail com link seguro
 - ✅ tests/webhook.test.ts > pagamento aprovado > associa pelo checkout_ref e enfileira a geração (auto-liberação ligada)
-- ✅ tests/jobs.test.ts > processamento assíncrono completo > falha na geração do PDF: registra erro, tenta de novo e conclui
-- ✅ tests/webhook.test.ts > pagamento aprovado > modo seguro: associa mas aguarda liberação manual
 - ✅ tests/download.test.ts > acesso seguro ao PDF > tokens adulterados, inventados ou ids de pedido não dão acesso
+- ✅ tests/webhook.test.ts > pagamento aprovado > modo seguro: associa mas aguarda liberação manual
+- ✅ tests/jobs.test.ts > processamento assíncrono completo > falha na geração do PDF: registra erro, tenta de novo e conclui
 - ✅ tests/webhook.test.ts > pagamento aprovado > encontra a referência mesmo dentro de uma URL codificada (ex.: checkoutUrl)
 - ✅ tests/webhook.test.ts > pagamento aprovado > com CAKTO_CORRELATION_PATH, só aceita a referência no caminho configurado
 - ✅ tests/jobs.test.ts > processamento assíncrono completo > falha persistente na geração: tarefa morre, pedido fica 'failed' e pode ser reprocessado
-- ✅ tests/webhook.test.ts > pagamento aprovado > valor abaixo do esperado vai para revisão
 - ✅ tests/download.test.ts > acesso seguro ao PDF > página de download não consome; limite de downloads e expiração são respeitados
+- ✅ tests/webhook.test.ts > pagamento aprovado > valor abaixo do esperado vai para revisão
 - ✅ tests/webhook.test.ts > associação incorreta ou ambígua entre pagamento e personalização > sem referência no payload: fica 'unmatched' e NADA é gerado (nunca associa por e-mail)
 - ✅ tests/jobs.test.ts > processamento assíncrono completo > falha no envio de e-mail: registra, tenta de novo com a MESMA chave de idempotência e o MESMO link
 - ✅ tests/webhook.test.ts > associação incorreta ou ambígua entre pagamento e personalização > referência desconhecida (ou forjada): needs_review
+- ✅ tests/download.test.ts > acesso seguro ao PDF > reembolso/chargeback revoga o link já enviado
 - ✅ tests/webhook.test.ts > associação incorreta ou ambígua entre pagamento e personalização > duas referências no mesmo payload: needs_review
 - ✅ tests/jobs.test.ts > processamento assíncrono completo > não envia e-mail duplicado (tarefa repetida, webhook repetido)
-- ✅ tests/download.test.ts > acesso seguro ao PDF > reembolso/chargeback revoga o link já enviado
 - ✅ tests/webhook.test.ts > associação incorreta ou ambígua entre pagamento e personalização > mesma personalização paga por dois pedidos: o segundo vai para revisão (sem livro duplicado)
 - ✅ tests/webhook.test.ts > associação incorreta ou ambígua entre pagamento e personalização > personalizações diferentes no mesmo e-mail de comprador geram pedidos e livros separados e corretos
 - ✅ tests/jobs.test.ts > processamento assíncrono completo > reenvio administrativo cria nova versão com novo link
@@ -78,23 +78,28 @@ Data da execução: 13/10/2026 · Ambiente: Linux, Node.js 22.22.0, Chromium 141
 - ✅ tests/webhook.test.ts > recusa, reembolso e chargeback > pagamento recusado: registra 'refused' e não gera nada
 - ✅ tests/book.test.ts > geração real de PDF (Chromium) > gera e valida o PDF de 'Lu' ('2-4', 'colorful')
 - ✅ tests/webhook.test.ts > recusa, reembolso e chargeback > reembolso depois da aprovação: revoga acesso e cancela tarefas pendentes
-- ✅ tests/jobs.test.ts > processamento assíncrono completo > livros de personalizações diferentes no mesmo e-mail saem com o nome certo
 - ✅ tests/book.test.ts > geração real de PDF (Chromium) > gera e valida o PDF de 'Miguel' ('5-7', 'colorful')
+- ✅ tests/jobs.test.ts > processamento assíncrono completo > livros de personalizações diferentes no mesmo e-mail saem com o nome certo
+- ✅ tests/webhook.test.ts > recusa, reembolso e chargeback > chargeback: revoga acesso
+- ✅ tests/book.test.ts > geração real de PDF (Chromium) > gera e valida o PDF de 'Maria Eduarda Albuquerque de Bragança' ('8-10', 'colorful')
 - ✅ tests/checkout.test.ts > início do checkout > anexa o checkout_ref nos parâmetros configurados
 - ✅ tests/checkout.test.ts > início do checkout > recusa URL de checkout fora da Cakto ou sem HTTPS
 - ✅ tests/checkout.test.ts > início do checkout > referências são aleatórias, únicas e no formato esperado
-- ✅ tests/webhook.test.ts > recusa, reembolso e chargeback > chargeback: revoga acesso
-- ✅ tests/book.test.ts > geração real de PDF (Chromium) > gera e valida o PDF de 'Maria Eduarda Albuquerque de Bragança' ('8-10', 'colorful')
 - ✅ tests/webhook.test.ts > recusa, reembolso e chargeback > eventos fora de ordem: aprovação depois do reembolso NÃO reativa o pedido
-- ✅ tests/checkout.test.ts > início do checkout > grava só o mínimo (sem e-mail ou dados do comprador) e com status pendente
 - ✅ tests/webhook.test.ts > recusa, reembolso e chargeback > recusa de uma tentativa antiga não desfaz aprovação
-- ✅ tests/checkout.test.ts > início do checkout > o banco recusa nomes inválidos mesmo sem passar pela API
+- ✅ tests/checkout.test.ts > início do checkout > grava só o mínimo (sem e-mail ou dados do comprador) e com status pendente
 - ✅ tests/webhook.test.ts > recusa, reembolso e chargeback > eventos não tratados (ex.: pix_gerado) são registrados como ignorados
-- ✅ tests/checkout.test.ts > início do checkout > limpeza remove personalizações não pagas antigas
+- ✅ tests/checkout.test.ts > início do checkout > o banco recusa nomes inválidos mesmo sem passar pela API
 - ✅ tests/webhook.test.ts > idempotência e novas tentativas > webhook duplicado: processa uma vez só
+- ✅ tests/checkout.test.ts > início do checkout > limpeza remove personalizações não pagas antigas
+- ✅ tests/webhook.test.ts > idempotência e novas tentativas > duplicados concorrentes não criam pedidos ou tarefas em dobro
 - ✅ tests/checkout.test.ts > segurança de configuração > comparação de segredo em tempo constante
 - ✅ tests/checkout.test.ts > segurança de configuração > modo seguro (sem auto-liberação) é o padrão
 - ✅ tests/checkout.test.ts > segurança de configuração > RLS está ligado e os papéis públicos não têm privilégios
+- ✅ tests/webhook.test.ts > idempotência e novas tentativas > falha de processamento: devolve 500, registra erro e permite reprocessar
+- ✅ tests/storage.test.ts > armazenamento R2 (URLs assinadas, sem rede) > gera URL assinada curta, no bucket privado, forçando download com nome amigável
+- ✅ tests/storage.test.ts > armazenamento R2 (URLs assinadas, sem rede) > caminho do arquivo deriva só do id do pedido (sem entrada do usuário)
+- ✅ tests/storage.test.ts > armazenamento R2 (URLs assinadas, sem rede) > recusa account id inválido
 - ✅ tests/names.test.ts > nome da criança — validação e normalização > aceita nomes curtos
 - ✅ tests/names.test.ts > nome da criança — validação e normalização > aceita nomes longos até 40 caracteres e recusa acima disso
 - ✅ tests/names.test.ts > nome da criança — validação e normalização > preserva acentos e caracteres especiais (ç, ñ, ł, hífen, apóstrofo)
@@ -105,8 +110,6 @@ Data da execução: 13/10/2026 · Ambiente: Linux, Node.js 22.22.0, Chromium 141
 - ✅ tests/names.test.ts > substituição segura no modelo > falha com marcador desconhecido (evita '{nmoe}' impresso)
 - ✅ tests/names.test.ts > substituição segura no modelo > preserva o nome com acentos dentro do texto
 - ✅ tests/names.test.ts > substituição segura no modelo > gera slugs e letras ASCII para arquivo e caça-palavras
-- ✅ tests/webhook.test.ts > idempotência e novas tentativas > duplicados concorrentes não criam pedidos ou tarefas em dobro
-- ✅ tests/webhook.test.ts > idempotência e novas tentativas > falha de processamento: devolve 500, registra erro e permite reprocessar
 - ✅ tests/webhook.test.ts > captura de payload para o teste de integração > guarda a estrutura com dados pessoais mascarados e preserva o checkout_ref
 - ✅ tests/webhook.test.ts > normalização do payload > converte valores e e-mail, sem inventar campos ausentes
 - ✅ tests/webhook.test.ts > normalização do payload > não procura referência dentro do campo secret
@@ -118,8 +121,8 @@ Data da execução: 13/10/2026 · Ambiente: Linux, Node.js 22.22.0, Chromium 141
 - ✅ tests/book.test.ts > geração real de PDF (Chromium) > o renderizador recusa um layout que transborda
 
 ```
- Test Files  6 passed (6)
-      Tests  77 passed (77)
+ Test Files  7 passed (7)
+      Tests  80 passed (80)
 ```
 
 ## Teste manual ponta a ponta (HTTP)
@@ -139,7 +142,7 @@ Executado com `next start` (build de produção) e um PostgreSQL PGlite exposto 
 | `/api/jobs/run` sem token | 401 |
 | Prévia da capa no formulário (390 px) | atualiza com “Ana Lívia” em tempo real |
 
-Neste teste o upload para o Supabase Storage e o envio pelo Resend **não** foram executados (sem credenciais).
+Neste teste o upload para o armazenamento e o envio pelo Resend **não** foram executados (sem credenciais).
 
 ## PDFs de exemplo gerados e validados
 | Nome | Idade | Estilo | Páginas | Tamanho | Tempo |
@@ -152,8 +155,8 @@ O estilo aquarela gera arquivos maiores porque o filtro SVG é rasterizado pelo 
 
 ## O que NÃO foi testado aqui
 - Webhook real da Cakto (formato, autenticação, campo da referência, unidade de `amount`) — ver `docs/CAKTO.md`, seção 5.
-- Upload/URL assinada reais no Supabase Storage; envio real pelo Resend.
-- Conexão com o Supabase Postgres (pooler/TLS).
+- Upload e download reais no Cloudflare R2 (a assinatura da URL foi testada offline); envio real pelo Resend.
+- Conexão com o Neon (pooler/TLS).
 - `Dockerfile.worker` (Docker indisponível no ambiente).
 - Concorrência real com múltiplas conexões/workers.
 - Leitores de tela e testes de acessibilidade automatizados (a página segue boas práticas: rótulos, foco visível, `prefers-reduced-motion`, contraste, alvos de toque ≥ 44 px — mas não houve auditoria formal).

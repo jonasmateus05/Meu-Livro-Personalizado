@@ -1,8 +1,7 @@
-import { createClient } from "@supabase/supabase-js";
 import { loadConfig, required, type AppConfig } from "./config";
 import { createPgSql, type Sql } from "./db";
 import { ResendMailer } from "./email";
-import { SupabaseBookStorage, type BookStorage } from "./storage";
+import { R2BookStorage, type BookStorage } from "./storage";
 import { safeEqual } from "./tokens";
 import type { HandlerDeps } from "./jobs/handlers";
 
@@ -25,11 +24,13 @@ export async function db(): Promise<Sql> {
 }
 
 export function storage(): BookStorage {
-  const c = config();
-  const client = createClient(required(c.supabaseUrl, "NEXT_PUBLIC_SUPABASE_URL"), required(c.supabaseServiceRoleKey, "SUPABASE_SERVICE_ROLE_KEY"), {
-    auth: { persistSession: false, autoRefreshToken: false },
+  const { r2 } = config();
+  return new R2BookStorage({
+    accountId: required(r2.accountId, "R2_ACCOUNT_ID"),
+    accessKeyId: required(r2.accessKeyId, "R2_ACCESS_KEY_ID"),
+    secretAccessKey: required(r2.secretAccessKey, "R2_SECRET_ACCESS_KEY"),
+    bucket: r2.bucket,
   });
-  return new SupabaseBookStorage(client, c.booksBucket);
 }
 
 export async function handlerDeps(): Promise<HandlerDeps> {

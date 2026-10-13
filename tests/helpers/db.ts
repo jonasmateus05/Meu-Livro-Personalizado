@@ -16,11 +16,11 @@ class PgliteSql implements Sql {
   }
 }
 
-const SCHEMA = readFileSync(path.join(__dirname, "..", "..", "supabase", "schema.sql"), "utf8");
+const SCHEMA = readFileSync(path.join(__dirname, "..", "..", "db", "schema.sql"), "utf8");
 
 export async function newTestDb(): Promise<{ sql: Sql; pg: PGlite }> {
   const pg = new PGlite();
-  // Papéis do Supabase, para exercitar o REVOKE do schema.
+  // Papéis anon/authenticated (existem no Supabase), para exercitar o REVOKE do schema.
   await pg.exec("create role anon; create role authenticated;");
   await pg.exec(SCHEMA);
   return { sql: new PgliteSql(pg), pg };

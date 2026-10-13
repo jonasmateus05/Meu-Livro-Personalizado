@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * POST (botão "Baixar PDF" da página /download/[token]): consome um download
- * e redireciona para uma URL assinada de curta duração do Supabase Storage.
+ * e redireciona para uma URL assinada de curta duração do Cloudflare R2.
  * GET não consome nada (evita que pré-visualizadores de link gastem downloads).
  */
 export async function POST(request: Request, { params }: { params: Promise<{ token: string }> }) {

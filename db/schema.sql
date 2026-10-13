@@ -1,15 +1,15 @@
 -- =============================================================================
--- Livro Bíblico Infantil Personalizado — esquema principal (PostgreSQL 15+)
+-- Livro Bíblico Infantil Personalizado — esquema do banco (PostgreSQL 15+)
 --
--- Aplique no Supabase pelo SQL Editor ou com `npm run db:migrate`.
+-- Aplique com `npm run db:migrate` (ou cole no SQL Editor do Neon).
 -- O arquivo é idempotente (pode ser executado novamente) e não depende de
 -- extensões: gen_random_uuid() é nativo desde o PostgreSQL 13.
 --
--- Todo acesso é feito pelo servidor (DATABASE_URL / service role). RLS fica
--- ligado em todas as tabelas SEM políticas públicas: as chaves anon/authenticated
--- não leem nem escrevem nada aqui.
+-- Todo acesso é feito pelo servidor (DATABASE_URL). RLS fica ligado em todas
+-- as tabelas sem políticas públicas; se existirem os papéis anon/authenticated
+-- (Supabase), eles perdem qualquer privilégio.
 --
--- Bucket privado de PDFs: veja supabase/storage.sql (específico do Supabase).
+-- Os PDFs ficam fora do banco, em um bucket privado do Cloudflare R2.
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
@@ -92,7 +92,7 @@ create index if not exists orders_fulfillment_idx on public.orders (fulfillment_
 create index if not exists orders_personalization_idx on public.orders (personalization_id);
 
 -- -----------------------------------------------------------------------------
--- Livros gerados: um por pedido. O PDF fica no bucket privado `books`.
+-- Livros gerados: um por pedido. O PDF fica no bucket privado do R2.
 -- -----------------------------------------------------------------------------
 create table if not exists public.generated_books (
   id uuid primary key default gen_random_uuid(),
@@ -215,8 +215,8 @@ create index if not exists jobs_ready_idx on public.jobs (run_after)
 create index if not exists jobs_order_idx on public.jobs (order_id);
 
 -- -----------------------------------------------------------------------------
--- Segurança: RLS ligado e nenhum privilégio para os papéis públicos do Supabase.
--- (O bloco condicional permite rodar este arquivo fora do Supabase.)
+-- Segurança: RLS ligado e nenhum privilégio para papéis públicos (anon/authenticated),
+-- quando existirem. O bloco condicional permite rodar em qualquer PostgreSQL.
 -- -----------------------------------------------------------------------------
 alter table public.personalizations enable row level security;
 alter table public.orders enable row level security;

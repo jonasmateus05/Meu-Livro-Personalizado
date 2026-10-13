@@ -6,7 +6,7 @@ import { DOWNLOAD_TOKEN_EXACT, sha256Hex } from "./tokens";
 /**
  * Download seguro: o e-mail leva um token opaco (HMAC, 256 bits). O banco só
  * guarda o hash. O token resolve para UM livro; o caminho do arquivo vem do
- * banco, nunca da URL. Cada clique gera uma URL assinada do Supabase válida
+ * banco, nunca da URL. Cada clique gera uma URL assinada do R2 válida
  * por poucos segundos/minutos.
  */
 

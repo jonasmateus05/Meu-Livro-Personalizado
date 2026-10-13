@@ -22,9 +22,10 @@ const envSchema = z.object({
 
   DATABASE_URL: optionalString,
   DATABASE_CA_CERT: optionalString,
-  NEXT_PUBLIC_SUPABASE_URL: optionalString,
-  SUPABASE_SERVICE_ROLE_KEY: optionalString,
-  SUPABASE_BOOKS_BUCKET: z.string().default("books"),
+  R2_ACCOUNT_ID: optionalString,
+  R2_ACCESS_KEY_ID: optionalString,
+  R2_SECRET_ACCESS_KEY: optionalString,
+  R2_BUCKET: z.string().default("livros"),
 
   CAKTO_WEBHOOK_SECRET: optionalString,
   CAKTO_PRODUCT_ID: optionalString,
@@ -62,9 +63,7 @@ export type AppConfig = {
   isProduction: boolean;
   databaseUrl?: string;
   databaseCaCert?: string;
-  supabaseUrl?: string;
-  supabaseServiceRoleKey?: string;
-  booksBucket: string;
+  r2: { accountId?: string; accessKeyId?: string; secretAccessKey?: string; bucket: string };
   cakto: {
     webhookSecret?: string;
     productId?: string;
@@ -89,9 +88,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     isProduction: e.NODE_ENV === "production",
     databaseUrl: e.DATABASE_URL,
     databaseCaCert: e.DATABASE_CA_CERT?.replace(/\\n/g, "\n"),
-    supabaseUrl: e.NEXT_PUBLIC_SUPABASE_URL,
-    supabaseServiceRoleKey: e.SUPABASE_SERVICE_ROLE_KEY,
-    booksBucket: e.SUPABASE_BOOKS_BUCKET,
+    r2: { accountId: e.R2_ACCOUNT_ID, accessKeyId: e.R2_ACCESS_KEY_ID, secretAccessKey: e.R2_SECRET_ACCESS_KEY, bucket: e.R2_BUCKET },
     cakto: {
       webhookSecret: e.CAKTO_WEBHOOK_SECRET,
       productId: e.CAKTO_PRODUCT_ID,

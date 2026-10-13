@@ -7,7 +7,8 @@
   npx playwright@1.56.1 install chromium
   ```
   ou aponte `CHROMIUM_EXECUTABLE_PATH` para um Chromium/Chrome já instalado.
-- Um projeto Supabase (ou qualquer PostgreSQL 15+ para desenvolvimento — o bucket de storage exige Supabase).
+- Um PostgreSQL 15+ (Neon recomendado; para desenvolvimento serve um Postgres local).
+- Um bucket privado no Cloudflare R2 (para o worker salvar os PDFs).
 - Conta Resend (para testar e-mails de verdade).
 
 ## 2. Dependências e variáveis
@@ -15,7 +16,7 @@
 npm install
 cp .env.example .env.local
 ```
-Preencha `.env.local` seguindo [`SUPABASE_RESEND.md`](SUPABASE_RESEND.md) e [`CAKTO.md`](CAKTO.md). Para apenas ver a página e gerar PDFs, nenhuma credencial é necessária.
+Preencha `.env.local` seguindo [`BANCO_ARMAZENAMENTO_EMAIL.md`](BANCO_ARMAZENAMENTO_EMAIL.md) e [`CAKTO.md`](CAKTO.md). Para apenas ver a página e gerar PDFs, nenhuma credencial é necessária.
 
 Gerar segredos fortes:
 ```bash
@@ -25,9 +26,9 @@ Use valores diferentes para `CAKTO_WEBHOOK_SECRET`, `DOWNLOAD_TOKEN_SECRET`, `AD
 
 ## 3. Banco
 ```bash
-npm run db:migrate   # aplica supabase/schema.sql (+ storage.sql se for Supabase)
+npm run db:migrate   # aplica db/schema.sql
 ```
-Ou cole `supabase/schema.sql` e depois `supabase/storage.sql` no SQL Editor do Supabase. Os arquivos são idempotentes.
+Ou cole `db/schema.sql` no SQL Editor do Neon. O arquivo é idempotente.
 
 ## 4. Executar
 ```bash
