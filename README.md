@@ -1,63 +1,85 @@
-# Livro Bíblico Infantil Personalizado — starter técnico
+# A Bíblia Infantil Personalizada
 
-Base inicial Next.js App Router + Supabase + webhook Cakto. Inclui formulário de personalização, esquema SQL e endpoint que registra eventos Cakto de forma idempotente. **Não está pronto para receber vendas reais**: a associação confiável entre o pedido Cakto e a personalização ainda precisa ser comprovada num evento real.
+Aplicação comercial para vender um **livro bíblico infantil personalizado em PDF**: os pais escolhem o nome da criança, a faixa etária (2–4, 5–7 ou 8–10 anos) e o estilo das ilustrações; pagam na **Cakto**; o sistema gera o PDF, guarda no **Supabase Storage privado** e envia o link seguro por e-mail via **Resend**.
 
-## 1. Requisitos
-- Node.js 20+
-- Projeto Supabase
-- Conta Cakto e produto cadastrado
-- Domínio HTTPS para webhook em produção
-- Conta Resend com domínio remetente verificado (necessário na fase de entrega)
+> **Estado atual:** o código, o banco, o livro e os testes automatizados estão prontos e passando. **Ainda não está validado com pagamentos reais**: falta configurar as credenciais e fazer a compra de teste na Cakto descrita em [`docs/CAKTO.md`](docs/CAKTO.md). Até lá, o sistema funciona em **modo seguro** (`FULFILLMENT_AUTO_RELEASE=false`): nenhum livro é gerado sem liberação manual. Veja [`docs/PENDENCIAS.md`](docs/PENDENCIAS.md).
 
-## 2. Instalação local
-```bash
-cp .env.example .env.local
-npm install
-npm run dev
+## Como funciona
+
+```text
+Página de vendas ──POST /api/checkout──► cria personalização (checkout_ref aleatório)
+       │                                       │
+       └──────── redireciona ───────► Checkout Cakto (?utm_content=lb_…&sck=lb_…&src=lb_…)
+                                               │ pagamento
+Cakto ──POST /api/webhooks/cakto──► valida segredo ─► registra evento (idempotente)
+                                    └► pedido aprovado ─► associa SOMENTE por checkout_ref inequívoco
+                                                         ├► sem referência / ambíguo → unmatched / needs_review (nada é gerado)
+                                                         └► associado → awaiting_release (modo seguro) ou fila
+Worker (npm run worker) ◄── fila no Postgres (FOR UPDATE SKIP LOCKED, backoff, idempotência)
+   generate_book: HTML → Chromium → verificação de layout → PDF → validação (pdf.js) → bucket privado
+   send_book_email: token de download (hash no banco) → Resend com Idempotency-Key
+Comprador ──/download/[token]──► página segura ──POST──► URL assinada de curta duração
+Reembolso/chargeback ──► revoga links e cancela tarefas pendentes
 ```
-Preencha as variáveis de ambiente. A página inicial pode salvar personalizações depois de aplicar o SQL.
 
-## 3. Configurar Supabase
-1. Abra SQL Editor no Supabase.
-2. Execute `supabase/schema.sql`.
-3. Preencha `NEXT_PUBLIC_SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` no `.env.local`.
-4. Nunca coloque `SUPABASE_SERVICE_ROLE_KEY` em variáveis `NEXT_PUBLIC_*`.
+## Estrutura
 
-## 4. Cadastrar o produto na Cakto
-1. Em Produtos, selecione Adicionar produto.
-2. Nome sugerido: `A Bíblia Infantil Personalizada`.
-3. Use descrição verdadeira, com no mínimo 100 caracteres conforme a central de ajuda da Cakto. Exemplo: `Livro digital infantil personalizado com o nome da criança, histórias bíblicas adaptadas à faixa etária, orações simples e atividades para compartilhar em família. O arquivo será produzido em PDF e enviado ao e-mail informado após a confirmação do pagamento.`
-4. Defina o preço e cadastre a URL pública da página de vendas (HTTPS quando publicada).
-5. Para a entrega, não configure um arquivo estático como se fosse o livro personalizado. A entrega final será pelo nosso backend após o webhook. Escolha a opção de entrega compatível com a configuração da conta e evite que a Cakto envie um material genérico antes do PDF personalizado.
-6. Publique e copie o link de checkout. Coloque-o em `CAKTO_CHECKOUT_URL` quando o redirecionamento for implementado.
+```text
+app/                       Next.js (App Router)
+  page.tsx                 página de vendas (mobile-first)
+  amostra/                 amostra com marca d'água gerada no navegador
+  download/[token]/        página segura de download
+  obrigado/, privacidade/  páginas institucionais
+  api/checkout             inicia a compra (cria personalização + URL Cakto)
+  api/webhooks/cakto       recebe eventos da Cakto
+  api/download/[token]     consome download e redireciona p/ URL assinada
+  api/jobs/run             executa a fila (cron, protegido por CRON_SECRET)
+  api/admin/*              reconciliação, liberação, reenvio, reprocessamento (ADMIN_API_TOKEN)
+components/                formulário com prévia da capa em tempo real, visualizador de amostra
+lib/
+  book/                    modelo editorial: histórias, ilustrações SVG, template, PDF, validação
+  cakto/                   normalização do payload, webhook, URL de checkout
+  jobs/                    fila, handlers (gerar PDF / enviar e-mail), runner
+  orders.ts                regras de pagamento, associação e revogação
+  download.ts, storage.ts, email.ts, tokens.ts, names.ts, validation.ts, config.ts, server.ts
+scripts/                   worker, migração, amostra de PDF, inspeção de payload da Cakto
+supabase/schema.sql        esquema (tabelas, restrições, índices, RLS)
+supabase/storage.sql       bucket privado `books`
+tests/                     Vitest + PGlite (Postgres real em memória) + Chromium real
+docs/                      instalação, deploy, Supabase/Resend, Cakto, testes, pendências
+```
 
-## 5. Configurar webhook
-1. Publique o endpoint em HTTPS: `https://SEU-DOMINIO/api/webhooks/cakto`.
-2. Na Cakto, vá a Integrações > Webhooks > Criar Novo Webhook.
-3. Selecione o produto e o evento `purchase_approved`. Adicione também `refund` e `chargeback` para monitorar alterações pós-compra.
-4. Configure uma chave secreta forte e idêntica a `CAKTO_WEBHOOK_SECRET`.
-5. Use “Enviar evento de teste” e examine o JSON e os logs de entrega no painel Cakto.
-6. Confirme que o payload recebido contém `secret`, `event`, `data.id`, `data.product.id`, `data.status`, `data.amount`, `data.customer.email` e `data.paidAt` (os campos exatos podem variar por evento).
+## Instalação local (resumo)
 
-## 6. BLOQUEIO obrigatório antes de vender
-O exemplo publicado pela Cakto inclui `data.id` (pedido), `data.refId`, cliente, produto, oferta, status e valor, mas **não mostra um campo que carregue nosso `personalization_id`**. O endpoint atual salva aprovações como `paid_unmatched` deliberadamente. Não associe pelo e-mail nem pelo nome: um comprador pode adquirir vários livros.
+Requisitos: Node.js 20.11+ e Chromium (o Playwright instala: `npx playwright install chromium`).
 
-Antes de produção, faça uma compra de teste e confirme se a Cakto suporta algum campo de referência/metadado que volte no webhook, ou se a API oficial permite consultar/associar a transação com segurança. Não presuma que `utm_*`, `src` ou os campos de pré-preenchimento carregam metadados arbitrários; a documentação consultada só os apresenta para rastreamento/preenchimento.
+```bash
+npm install
+cp .env.example .env.local        # preencha (veja docs/SUPABASE_RESEND.md e docs/CAKTO.md)
+npm run db:migrate                # aplica supabase/schema.sql e storage.sql no DATABASE_URL
+npm run dev                       # http://localhost:3000
+npm run worker                    # em outro terminal: processa a fila
+```
 
-Se não houver mecanismo de correlação suportado, alternativas seguras são: um fluxo de checkout individualizado que produza um identificador verificável; ou um processo de reconciliação manual temporário. Não libere o PDF automaticamente até resolver esse ponto.
+Gerar um PDF de exemplo sem banco nem pagamento:
 
-## 7. Próximas peças ainda não implementadas
-- Confirmar o contrato real de correlação da Cakto.
-- Rota segura para iniciar/redirecionar checkout.
-- Fila/worker transacional de geração PDF e retries.
-- Modelo editorial completo, textos revisados e ilustrações licenciadas.
-- Upload para bucket privado Supabase Storage.
-- Link de download autenticado/assinado.
-- Envio via Resend, controle de tentativas e prevenção de e-mail duplicado.
-- Política para reembolso/chargeback e revogação de acesso.
-- Rate limiting, validação de domínio/produto e testes de segurança.
+```bash
+npm run book:sample -- --name "Ana Lívia" --age 2-4 --style watercolor --out tmp/ana.pdf
+```
 
-## Referências oficiais
-- https://cakto-dece4a15.mintlify.app/webhooks/pagamento-unico
-- https://ajuda.cakto.com.br/pt-br/articles/1-como-funcionam-os-webhooks-na-cakto-guia-completo
-- https://ajuda.cakto.com.br/pt-br/articles/86-como-cadastrar-o-meu-produto-na-cakto
+Verificações:
+
+```bash
+npm run lint && npm run typecheck && npm test && npm run build
+```
+
+Detalhes: [`docs/INSTALACAO.md`](docs/INSTALACAO.md) · Deploy: [`docs/DEPLOY.md`](docs/DEPLOY.md) · Supabase e Resend: [`docs/SUPABASE_RESEND.md`](docs/SUPABASE_RESEND.md) · Cakto: [`docs/CAKTO.md`](docs/CAKTO.md) · Testes: [`docs/RELATORIO_TESTES.md`](docs/RELATORIO_TESTES.md) · Pendências: [`docs/PENDENCIAS.md`](docs/PENDENCIAS.md) · Operação/admin: [`docs/OPERACAO.md`](docs/OPERACAO.md)
+
+## Decisões importantes
+
+- **Correlação pedido ↔ personalização:** não presumimos que a Cakto devolve campos personalizados. Enviamos um token aleatório (`lb_` + 24 caracteres) no link de checkout e o procuramos no payload do webhook. Só há associação com **exatamente um** token válido, existente e ainda não pago. Nunca usamos e-mail, nome ou horário. Sem token ⇒ `unmatched` (reconciliação manual).
+- **Modo seguro por padrão:** mesmo associado, o pedido fica em `awaiting_release` até `FULFILLMENT_AUTO_RELEASE=true`, que só deve ser ligado depois do teste real.
+- **Pagamento só pelo webhook autenticado.** O navegador nunca informa status de pagamento.
+- **Livro validado antes da entrega:** verificação de transbordamento de texto, imagens, fontes e nome no navegador; depois o PDF é lido com pdf.js (nº de páginas, texto em todas as páginas, nome com acentos na capa e no miolo).
+- **Conteúdo:** histórias recontadas (sem citações literais), referência bíblica em cada uma, linguagem neutra quanto ao gênero, ilustrações SVG originais e fontes OFL.
+- **Dados mínimos:** a personalização guarda só nome, idade e estilo; o e-mail vem da Cakto. Personalizações não pagas são apagadas após 30 dias.
