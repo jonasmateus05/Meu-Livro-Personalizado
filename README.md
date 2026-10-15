@@ -26,7 +26,8 @@ Reembolso/chargeback ──► revoga links e cancela tarefas pendentes
 
 ```text
 app/                       Next.js (App Router)
-  page.tsx                 página de vendas (mobile-first)
+  page.tsx                 tela inicial: só o nome da criança → /oferta?nome=...
+  oferta/                  funil personalizado com o nome (prévia real do livro, personalização e oferta)
   amostra/                 amostra com marca d'água gerada no navegador
   download/[token]/        página segura de download
   obrigado/, privacidade/  páginas institucionais
@@ -35,7 +36,7 @@ app/                       Next.js (App Router)
   api/download/[token]     consome download e redireciona p/ URL assinada
   api/jobs/run             executa a fila (cron, protegido por CRON_SECRET)
   api/admin/*              reconciliação, liberação, reenvio, reprocessamento (ADMIN_API_TOKEN)
-components/                formulário com prévia da capa em tempo real, visualizador de amostra
+components/                tela do nome, funil /oferta, páginas reais do livro em iframe, amostra
 lib/
   book/                    modelo editorial: histórias, ilustrações SVG, template, PDF, validação
   cakto/                   normalização do payload, webhook, URL de checkout

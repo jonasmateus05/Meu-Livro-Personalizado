@@ -29,8 +29,12 @@ export type BookInput = {
 export type RenderOptions = {
   /** @font-face CSS (embutido para PDF, por URL na web). */
   fontCss: string;
-  /** "full" = livro completo; "sample" = amostra com marca d'água; "cover" = só capa. */
-  variant?: "full" | "sample" | "cover";
+  /** "full" = livro completo; "sample" = amostra com marca d'água; "cover" = só capa; "pages" = páginas escolhidas. */
+  variant?: "full" | "sample" | "cover" | "pages";
+  /** Com variant "pages": números das páginas (1 = capa). */
+  pages?: number[];
+  /** Fundo transparente fora da página (vitrine na web). */
+  bare?: boolean;
 };
 
 type PageHtml = { html: string; kind: string };
@@ -81,6 +85,8 @@ export const BOOK_CSS = `
 html,body{margin:0;padding:0}
 body{font-family:'Nunito',sans-serif;color:var(--ink);background:#e9e6ef;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-size:var(--body-size);line-height:1.45}
 @media print{body{background:none}}
+body.bare{background:transparent}
+body.bare .page{margin:0;box-shadow:none}
 h1,h2,h3,.display{font-family:'Fredoka',sans-serif;font-weight:600;margin:0;line-height:1.12}
 p{margin:0 0 .7em}
 .nm{font-weight:800;color:var(--primary)}
@@ -538,7 +544,7 @@ function documentHtml(input: BookInput, opts: RenderOptions, pages: PageHtml[]):
   const theme = cssVars({ ...THEMES[input.style], ...AGE_VARS[input.ageGroup], "--night": input.style === "colorful" ? "#26305f" : "#4a5583" });
   const watermark = opts.variant === "sample" ? `<div class="watermark"><span>AMOSTRA</span></div>` : "";
   const body = pages.map((p) => (watermark ? p.html.replace("</section>", `${watermark}</section>`) : p.html)).join("\n");
-  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>A Bíblia de ${escapeHtml(input.childName)}</title><style>${opts.fontCss}</style><style>:root{${theme}}${BOOK_CSS}</style></head><body class="age-${input.ageGroup} style-${input.style}">${body}<script>${AUTOFIT_SCRIPT}</script></body></html>`;
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>A Bíblia de ${escapeHtml(input.childName)}</title><style>${opts.fontCss}</style><style>:root{${theme}}${BOOK_CSS}</style></head><body class="age-${input.ageGroup} style-${input.style}${opts.bare ? " bare" : ""}">${body}<script>${AUTOFIT_SCRIPT}</script></body></html>`;
 }
 
 /** HTML completo do livro (ou amostra/capa). */
@@ -546,6 +552,10 @@ export function renderBookHtml(input: BookInput, opts: RenderOptions): string {
   const variant = opts.variant ?? "full";
   let pages: PageHtml[];
   if (variant === "cover") pages = [coverPage(input)];
+  else if (variant === "pages") {
+    const all = buildPages(input);
+    pages = (opts.pages ?? [1]).map((n) => all[n - 1]).filter(Boolean);
+  }
   else if (variant === "sample") {
     const all = buildPages(input);
     // capa, carta de boas-vindas e a primeira história completa
